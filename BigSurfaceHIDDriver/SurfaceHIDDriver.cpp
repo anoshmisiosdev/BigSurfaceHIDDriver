@@ -30,6 +30,13 @@ void SurfaceHIDDriver::eventReceived(SurfaceHIDNub *sender, SurfaceHIDDeviceType
                 tpd_interrupt->interruptOccurred(nullptr, this, 0);
             }
             break;
+        case SurfaceAuxKeyboardDevice:
+            if (has_aux) {
+                aux_report->setLength(len);
+                aux_report->writeBytes(0, buffer, len);
+                aux_interrupt->interruptOccurred(nullptr, this, 0);
+            }
+            break;
         default:
             DBG_LOG("WTF? Unknown event type %d", device);
             break;
@@ -39,6 +46,11 @@ void SurfaceHIDDriver::eventReceived(SurfaceHIDNub *sender, SurfaceHIDDeviceType
 void SurfaceHIDDriver::keyboardInputReceived(IOInterruptEventSource *sender, int count) {
     if (keyboard->handleReport(kbd_report) != kIOReturnSuccess)
         LOG("Handle keyboard report error!");
+}
+
+void SurfaceHIDDriver::auxKeyboardInputReceived(IOInterruptEventSource *sender, int count) {
+    if (aux_keyboard->handleReport(aux_report) != kIOReturnSuccess)
+        LOG("Handle aux keyboard report error!");
 }
 
 void SurfaceHIDDriver::touchpadInputReceived(IOInterruptEventSource *sender, int count) {
@@ -56,6 +68,8 @@ IOService *SurfaceHIDDriver::probe(IOService *provider, SInt32 *score) {
     
     OSBoolean *type = OSRequiredCast(OSBoolean, nub->getProperty(SURFACE_LEGACY_HID_STRING));
     legacy = type->getValue();
+    OSBoolean *aux = OSDynamicCast(OSBoolean, nub->getProperty(SURFACE_HID_AUX_KBD_STRING));
+    has_aux = !legacy && aux && aux->getValue();
     
 	return this;
 }
@@ -132,6 +146,33 @@ bool SurfaceHIDDriver::start(IOService *provider) {
         work_loop->addEventSource(tpd_interrupt);
         tpd_interrupt->enable();
     }
+    
+    if (has_aux) {
+        aux_keyboard = OSTypeAlloc(SurfaceHIDDevice);
+        if (!aux_keyboard) {
+            LOG("Could not create aux keyboard device");
+            goto exit;
+        }
+        aux_keyboard->device = SurfaceAuxKeyboardDevice;
+        aux_keyboard->device_name = "Surface Keyboard (media keys)";
+        if (!aux_keyboard->init() || !aux_keyboard->attach(this)) {
+            LOG("Could not init aux keyboard device");
+            goto exit;
+        }
+        if (!aux_keyboard->start(this)) {
+            aux_keyboard->detach(this);
+            LOG("Could not start aux keyboard device");
+            goto exit;
+        }
+        aux_report = IOBufferMemoryDescriptor::withCapacity(32, kIODirectionNone);
+        aux_interrupt = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventAction, this, &SurfaceHIDDriver::auxKeyboardInputReceived));
+        if (!aux_interrupt) {
+            LOG("Could not create aux keyboard interrupt event!");
+            goto exit;
+        }
+        work_loop->addEventSource(aux_interrupt);
+        aux_interrupt->enable();
+    }
     ready = true;
     
 	return true;
@@ -157,10 +198,16 @@ void SurfaceHIDDriver::releaseResources() {
         work_loop->removeEventSource(tpd_interrupt);
         OSSafeReleaseNULL(tpd_interrupt);
     }
+    if (aux_interrupt) {
+        aux_interrupt->disable();
+        work_loop->removeEventSource(aux_interrupt);
+        OSSafeReleaseNULL(aux_interrupt);
+    }
     OSSafeReleaseNULL(work_loop);
     
     OSSafeReleaseNULL(kbd_report);
     OSSafeReleaseNULL(tpd_report);
+    OSSafeReleaseNULL(aux_report);
     
     if (keyboard) {
         keyboard->stop(this);
@@ -171,6 +218,11 @@ void SurfaceHIDDriver::releaseResources() {
         touchpad->stop(this);
         touchpad->detach(this);
         OSSafeReleaseNULL(touchpad);
+    }
+    if (aux_keyboard) {
+        aux_keyboard->stop(this);
+        aux_keyboard->detach(this);
+        OSSafeReleaseNULL(aux_keyboard);
     }
 }
 

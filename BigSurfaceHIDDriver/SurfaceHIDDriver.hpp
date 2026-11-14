@@ -40,16 +40,22 @@ private:
     IOInterruptEventSource* tpd_interrupt {nullptr};
     SurfaceHIDDevice*       keyboard {nullptr};
     SurfaceHIDDevice*       touchpad {nullptr};
+    IOInterruptEventSource* aux_interrupt {nullptr};
+    SurfaceHIDDevice*       aux_keyboard {nullptr};    // Surface Laptop Studio: HID instance 2
     
     bool    legacy {false};
+    bool    has_aux {false};
     bool    ready {false};
     
     IOBufferMemoryDescriptor* kbd_report {nullptr};
     IOBufferMemoryDescriptor* tpd_report {nullptr};
+    IOBufferMemoryDescriptor* aux_report {nullptr};
     
     void eventReceived(SurfaceHIDNub *sender, SurfaceHIDDeviceType device, UInt8 *buffer, UInt16 len);
     
     void keyboardInputReceived(IOInterruptEventSource *sender, int count);
+    
+    void auxKeyboardInputReceived(IOInterruptEventSource *sender, int count);
     
     void touchpadInputReceived(IOInterruptEventSource *sender, int count);
     
