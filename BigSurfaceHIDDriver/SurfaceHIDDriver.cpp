@@ -15,6 +15,10 @@ OSDefineMetaClassAndStructors(SurfaceHIDDriver, IOService)
 void SurfaceHIDDriver::eventReceived(SurfaceHIDNub *sender, SurfaceHIDDeviceType device, UInt8 *buffer, UInt16 len) {
     if (!ready)
         return;
+    if (len == 0 || len > SURFACE_HID_REPORT_BUFFER) {
+        LOG("Dropping %u-byte HID report from device %d (buffer is %d bytes)", len, device, SURFACE_HID_REPORT_BUFFER);
+        return;
+    }
     
     switch (device) {
         case SurfaceLegacyKeyboardDevice:
@@ -111,7 +115,7 @@ bool SurfaceHIDDriver::start(IOService *provider) {
         LOG("Could not start keyboard device");
         goto exit;
     }
-    kbd_report = IOBufferMemoryDescriptor::withCapacity(32, kIODirectionNone);
+    kbd_report = IOBufferMemoryDescriptor::withCapacity(SURFACE_HID_REPORT_BUFFER, kIODirectionNone);
     kbd_interrupt = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventAction, this, &SurfaceHIDDriver::keyboardInputReceived));
     if (!kbd_interrupt) {
         LOG("Could not create keyboard interrupt event!");
@@ -137,7 +141,7 @@ bool SurfaceHIDDriver::start(IOService *provider) {
             LOG("Could not start Surface touchpad device");
             goto exit;
         }
-        tpd_report = IOBufferMemoryDescriptor::withCapacity(32, kIODirectionNone);
+        tpd_report = IOBufferMemoryDescriptor::withCapacity(SURFACE_HID_REPORT_BUFFER, kIODirectionNone);
         tpd_interrupt = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventAction, this, &SurfaceHIDDriver::touchpadInputReceived));
         if (!tpd_interrupt) {
             LOG("Could not create touchpad interrupt event!");
@@ -164,7 +168,7 @@ bool SurfaceHIDDriver::start(IOService *provider) {
             LOG("Could not start aux keyboard device");
             goto exit;
         }
-        aux_report = IOBufferMemoryDescriptor::withCapacity(32, kIODirectionNone);
+        aux_report = IOBufferMemoryDescriptor::withCapacity(SURFACE_HID_REPORT_BUFFER, kIODirectionNone);
         aux_interrupt = IOInterruptEventSource::interruptEventSource(this, OSMemberFunctionCast(IOInterruptEventAction, this, &SurfaceHIDDriver::auxKeyboardInputReceived));
         if (!aux_interrupt) {
             LOG("Could not create aux keyboard interrupt event!");

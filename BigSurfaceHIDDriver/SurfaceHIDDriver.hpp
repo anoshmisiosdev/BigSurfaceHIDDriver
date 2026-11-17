@@ -13,6 +13,11 @@
 
 class SurfaceHIDDevice;
 
+// Largest HID input report we accept from the SAM. The Surface Laptop Studio touchpad's precision report (ID 4) is
+// 44 bytes and its vendor reports reach 64; the old 32-byte buffers truncated them and the HID parser dropped every one.
+// The SSH message cache is 256 bytes, so nothing larger can arrive.
+#define SURFACE_HID_REPORT_BUFFER 256
+
 class EXPORT SurfaceHIDDriver : public IOService {
 	OSDeclareDefaultStructors(SurfaceHIDDriver)
 
