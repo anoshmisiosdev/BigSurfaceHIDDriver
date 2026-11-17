@@ -75,9 +75,13 @@ MultitouchReturn VoodooI2CNativeEngine::handleInterruptReport(VoodooI2CMultitouc
         inputTransducer->currentCoordinates.pressure = 0;
         inputTransducer->previousCoordinates.pressure = 0;
 
-        // Force Touch emulation
-        // The button state is saved in the first transducer
-        if (((VoodooI2CDigitiserTransducer*) event.transducers->getObject(0))->physical_button.value() && isForceClickEnabled()) {
+        // Force Touch emulation. Upstream turns EVERY physical click into a full-pressure force click when the user has
+        // "Force Click and haptic feedback" on, which on the Surface Laptop Studio made each click feel like a deep press
+        // (Look Up / Quick Look firing). This pad reports real pressure, so only a genuinely hard press while the
+        // button is down becomes a force click; an ordinary click stays an ordinary button click.
+        // The button state is saved in the first transducer.
+        VoodooI2CDigitiserTransducer* first = (VoodooI2CDigitiserTransducer*) event.transducers->getObject(0);
+        if (first->physical_button.value() && isForceClickEnabled() && pmax > 1 && praw * 100 >= pmax * 85) {
             inputTransducer->supportsPressure = true;
             inputTransducer->isPhysicalButtonDown = 0x0;
             inputTransducer->currentCoordinates.pressure = 0xff;
