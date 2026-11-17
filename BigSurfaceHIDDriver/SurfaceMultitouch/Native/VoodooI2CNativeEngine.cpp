@@ -58,12 +58,20 @@ MultitouchReturn VoodooI2CNativeEngine::handleInterruptReport(VoodooI2CMultitouc
         inputTransducer->supportsPressure = false;
         inputTransducer->timestamp = timestamp;
 
-        // TODO: does VoodooI2C know width(s)? how does it measure pressure?
-        inputTransducer->currentCoordinates.width = transducer->tip_pressure.value() / 2;
-        inputTransducer->previousCoordinates.width = transducer->tip_pressure.last.value / 2;
-
-        inputTransducer->currentCoordinates.pressure = transducer->tip_pressure.value();
-        inputTransducer->previousCoordinates.pressure = transducer->tip_pressure.last.value;
+        // The HID pressure can span the device's whole logical range (the Surface Laptop Studio touchpad reports
+        // 0..2000), but the emulated Magic Trackpad 2 carries pressure and contact size as single bytes: a high
+        // pressure is a force click and a large size is a palm, so raw values wrap into "palm pressing hard" and
+        // clicks turn into right/double/force clicks. Scale to 0..255, keep normal touches under the force-click
+        // range, and derive a small contact size from it (pads that report no pressure get 10, as the force-touch
+        // emulation below already uses).
+        UInt32 pmax = transducer->pressure_physical_max > 0 ? (UInt32) transducer->pressure_physical_max : 255;
+        UInt32 praw = transducer->tip_pressure.value(), plast = transducer->tip_pressure.last.value;
+        UInt32 pcur = praw > pmax ? 255 : praw * 255 / pmax;
+        UInt32 pprev = plast > pmax ? 255 : plast * 255 / pmax;
+        inputTransducer->currentCoordinates.width = 10 + pcur / 16;
+        inputTransducer->previousCoordinates.width = 10 + pprev / 16;
+        inputTransducer->currentCoordinates.pressure = pcur / 2;
+        inputTransducer->previousCoordinates.pressure = pprev / 2;
 
         // Force Touch emulation
         // The button state is saved in the first transducer
