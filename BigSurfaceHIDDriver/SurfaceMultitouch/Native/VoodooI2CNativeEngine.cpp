@@ -70,8 +70,10 @@ MultitouchReturn VoodooI2CNativeEngine::handleInterruptReport(VoodooI2CMultitouc
         UInt32 pprev = plast > pmax ? 255 : plast * 255 / pmax;
         inputTransducer->currentCoordinates.width = 10 + pcur / 16;
         inputTransducer->previousCoordinates.width = 10 + pprev / 16;
-        inputTransducer->currentCoordinates.pressure = pcur / 2;
-        inputTransducer->previousCoordinates.pressure = pprev / 2;
+        // Any non-zero pressure here is read by macOS as a (partial) force click ("3D touch" feel on every click), so a
+        // plain touch reports 0; only the force-touch emulation below raises it, and only when the button is down.
+        inputTransducer->currentCoordinates.pressure = 0;
+        inputTransducer->previousCoordinates.pressure = 0;
 
         // Force Touch emulation
         // The button state is saved in the first transducer
